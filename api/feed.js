@@ -1,17 +1,24 @@
-// فایل نهایی: /api/feed.js
+// فایل نهایی و اصلاح شده: /api/feed.js
 
 export default async function handler(request, response) {
-    // کلید API را به صورت امن از متغیرهای محیطی Vercel می‌خوانیم
-    const apiKey = process.env.ALPHAVANTAGE_API_KEY;
+    // ---- بخش جدید و مهم برای مدیریت کامل CORS ----
+    // این هدرها به مرورگر می‌گویند که سایت فریمر شما مجاز به درخواست است
+    response.setHeader('Access-Control-Allow-Origin', '*'); // به هر دامنه‌ای اجازه بده
+    response.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+    // اگر درخواست از نوع "pre-flight" (OPTIONS) بود، فوراً پاسخ موفقیت‌آمیز بده
+    if (request.method === 'OPTIONS') {
+        return response.status(200).end();
+    }
+    // ---------------------------------------------
+
+    const apiKey = process.env.ALPHAVANTAGE_API_KEY;
     if (!apiKey) {
         return response.status(500).json({ error: 'Alpha Vantage API key is not configured.' });
     }
 
-    // موضوعات مرتبط با فارکس و بازارهای مالی
     const topics = 'financial_markets,economy_monetary,earnings,blockchain';
-    
-    // ساخت URL نهایی برای Alpha Vantage
     const alphaVantageUrl = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&topics=${topics}&limit=50&apikey=${apiKey}`;
 
     try {
@@ -21,29 +28,22 @@ export default async function handler(request, response) {
         }
         
         const newsData = await newsResponse.json();
-
-        // بررسی اینکه آیا پاسخی دریافت شده یا نه (ممکن است به خاطر محدودیت API خالی باشد)
         if (!newsData.feed || newsData.feed.length === 0) {
-            console.log("Alpha Vantage returned an empty feed. This might be due to API rate limits.");
             return response.status(200).json({ items: [] });
         }
 
-        // **پردازش و تمیزکاری داده‌ها برای کامپوننت فریمر**
         const processedItems = newsData.feed
-            // فقط اخباری که عکس دارند را نگه دار
             .filter(item => item.banner_image)
-            // ساختار داده را به فرمت مورد نیاز کامپوننت خودمان تغییر بده
             .map(item => ({
                 title: item.title,
                 link: item.url,
-                contentSnippet: item.summary, // Alpha Vantage از summary استفاده می‌کند
-                image: item.banner_image,   // و برای عکس از banner_image
+                contentSnippet: item.summary,
+                image: item.banner_image,
                 guid: item.url,
             }));
 
-        // تنظیم هدرهای لازم
-        response.setHeader('Access-Control-Allow-Origin', '*');
-        response.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate'); // کش برای ۱۰ دقیقه
+        // تنظیم کش برای ۱۰ دقیقه
+        response.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate');
 
         return response.status(200).json({ items: processedItems });
 
