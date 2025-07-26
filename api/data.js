@@ -3,8 +3,8 @@ import * as cheerio from 'cheerio';
 
 export default async function handler(request, response) {
     const { url } = request.query;
-    if (!url || !url.includes("myfxbook.com/members")) {
-        return response.status(400).json({ error: "A valid MyFXBook profile URL is required." });
+    if (!url || !url.includes("myfxbook.com/statements")) {
+        return response.status(400).json({ error: "A valid MyFXBook Statement URL is required." });
     }
 
     try {
@@ -17,19 +17,20 @@ export default async function handler(request, response) {
         const html = await myfxbookResponse.text();
         const $ = cheerio.load(html);
 
-        // --- سلکتورهای جدید و اصلاح‌شده بر اساس ساختار فعلی MyFXBook ---
-        const growth = $('#widget-gain-value').text().trim();
-        const drawdown = $('#widget-drawdown-value').text().trim();
-        const profitability = $('td:contains("Profitability")').next('td').text().trim();
+        // استخراج داده‌ها با استفاده از سلکتورهای دقیق صفحه بیانیه
+        const growth = $('td:contains("Gain:")').next().text().trim();
+        const drawdown = $('td:contains("Drawdown:")').next().text().trim();
+        const profitability = $('td:contains("Profitability:")').next().text().trim();
         
+        // استخراج داده‌های نمودار
         let chartData = [];
         const scriptTags = $('script[type="text/javascript"]');
         scriptTags.each((i, el) => {
             const scriptContent = $(el).html();
-            if (scriptContent && scriptContent.includes('var chartData')) {
-                const match = scriptContent.match(/var chartData\s*=\s*(\[.*?\]);/);
+            if (scriptContent && scriptContent.includes('var data =')) {
+                const match = scriptContent.match(/var data\s*=\s*(\[.*?\]);/);
                 if (match && match[1]) {
-                    chartData = JSON.parse(match[1].replace(/'/g, '"'));
+                    chartData = JSON.parse(match[1]);
                 }
             }
         });
@@ -42,7 +43,7 @@ export default async function handler(request, response) {
         };
         
         response.setHeader('Access-Control-Allow-Origin', '*');
-        response.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
+        response.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate'); // کش کردن برای ۱ ساعت
         return response.status(200).json(extractedData);
 
     } catch (error) {
