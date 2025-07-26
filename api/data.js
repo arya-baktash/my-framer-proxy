@@ -17,12 +17,11 @@ export default async function handler(request, response) {
         const html = await myfxbookResponse.text();
         const $ = cheerio.load(html);
 
-        // استخراج داده‌ها با استفاده از سلکتورهای دقیق HTML
+        // --- سلکتورهای جدید و اصلاح‌شده بر اساس ساختار فعلی MyFXBook ---
         const growth = $('#widget-gain-value').text().trim();
         const drawdown = $('#widget-drawdown-value').text().trim();
         const profitability = $('td:contains("Profitability")').next('td').text().trim();
         
-        // استخراج داده‌های نمودار
         let chartData = [];
         const scriptTags = $('script[type="text/javascript"]');
         scriptTags.each((i, el) => {
@@ -43,7 +42,7 @@ export default async function handler(request, response) {
         };
         
         response.setHeader('Access-Control-Allow-Origin', '*');
-        response.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate'); // کش کردن برای ۱ ساعت
+        response.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
         return response.status(200).json(extractedData);
 
     } catch (error) {
